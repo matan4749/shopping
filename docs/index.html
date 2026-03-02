@@ -245,10 +245,35 @@
       });
     }
 
-    // ---- PWA SERVICE WORKER ----
+    // ---- PWA SERVICE WORKER (inline blob) ----
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(() => {});
+      window.addEventListener('load', async () => {
+        try {
+          // Try /sw.js first (works if file exists)
+          const swCode = `
+const CACHE='shopping-v2';
+self.addEventListener('install',e=>{self.skipWaiting();});
+self.addEventListener('activate',e=>{self.clients.claim();});
+self.addEventListener('fetch',e=>{});
+self.addEventListener('push',e=>{
+  let d={title:'🛒 קניות שלנו',body:'יש עדכון ברשימה!'};
+  try{d=e.data.json();}catch{}
+  e.waitUntil(self.registration.showNotification(d.title,{
+    body:d.body,icon:'/icons/icon-192.png',badge:'/icons/icon-72.png',
+    tag:'shopping',renotify:true,vibrate:[200,100,200],data:{url:'/'}
+  }));
+});
+self.addEventListener('notificationclick',e=>{
+  e.notification.close();
+  e.waitUntil(clients.matchAll({type:'window'}).then(list=>{
+    for(const c of list){if('focus' in c)return c.focus();}
+    return clients.openWindow('/');
+  }));
+});`;
+          const blob = new Blob([swCode], {type:'application/javascript'});
+          const swUrl = URL.createObjectURL(blob);
+          await navigator.serviceWorker.register(swUrl, {scope:'/'});
+        } catch(e) {}
       });
     }
 
@@ -372,7 +397,7 @@
     #appScreen{display:none}
     .app{max-width:540px;margin:0 auto;padding:0 0 calc(88px + var(--safe-bottom));min-height:100vh;padding-top:0}
 
-    .header{background:var(--card);border-bottom:1px solid var(--border);padding:max(16px, env(safe-area-inset-top)) 20px 14px;padding-top:calc(env(safe-area-inset-top) + 16px);position:sticky;top:0;z-index:50}
+    .header{background:var(--card);border-bottom:1px solid var(--border);padding:16px 20px 14px;padding-top:calc(env(safe-area-inset-top, 0px) + 16px);position:sticky;top:0;z-index:50}
     .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
     .header-brand{display:flex;align-items:center;gap:8px;min-width:0;flex:1}
     .header-brand-icon{font-size:22px}
@@ -444,7 +469,7 @@
     .fab-btn-edit{background:var(--bg2);color:var(--text2)}
     .fab-btn-edit.active{background:var(--orange);color:white}
 
-    .edit-bar{position:fixed;top:0;left:0;right:0;z-index:200;background:#fffbf0;border-bottom:2px solid #fde68a;padding:10px 20px;display:none;align-items:center;justify-content:space-between;max-width:540px;margin:0 auto}
+    .edit-bar{position:relative;z-index:1;background:#fffbf0;border-bottom:2px solid #fde68a;padding:8px 20px;margin:-16px -20px 12px;margin-top:calc(-1 * (env(safe-area-inset-top, 0px) + 16px));display:none;align-items:center;justify-content:space-between;max-width:540px;margin:0 auto}
     .edit-bar.show{display:flex}
     .edit-bar-text{font-size:13px;font-weight:700;color:var(--orange)}
     .edit-bar-actions{display:flex;gap:8px}
@@ -480,16 +505,15 @@
 </div>
 
 <div id="appScreen">
-  <div class="edit-bar" id="editBar">
-    <span class="edit-bar-text">✏️ מצב עריכה</span>
-    <div class="edit-bar-actions">
-      <button class="btn-clear-done" onclick="clearDone()">🗑️ מחק נלקטו</button>
-      <button class="btn-clear-all" onclick="clearAll()">מחק הכל</button>
-    </div>
-  </div>
-
   <div class="app" id="appInner">
     <div class="header">
+      <div class="edit-bar" id="editBar">
+        <span class="edit-bar-text">✏️ מצב עריכה</span>
+        <div class="edit-bar-actions">
+          <button class="btn-clear-done" onclick="clearDone()">🗑️ מחק נלקטו</button>
+          <button class="btn-clear-all" onclick="clearAll()">מחק הכל</button>
+        </div>
+      </div>
       <div class="header-top">
         <div class="header-brand">
           <span class="header-brand-icon">🛒</span>
